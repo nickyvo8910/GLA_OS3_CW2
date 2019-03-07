@@ -1,0 +1,5 @@
+In file included from /media/nicky/STUDY/3_GU/4thYr/_Sem2/OS/OS3_CW2/Coursework-code-skeleton/testbench.c:1:0:
+/media/nicky/STUDY/3_GU/4thYr/_Sem2/OS/OS3_CW2/Coursework-code-skeleton/driver.h:5:10: fatal error: CL/cl.h: No such file or directory
+ #include <CL/cl.h>
+          ^~~~~~~~~
+compilation terminated.
