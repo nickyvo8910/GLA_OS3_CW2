@@ -134,7 +134,9 @@ CLObject* init_driver() {
 // START of assignment code section
     // [YOUR CODE HERE]
     //Creating mutex to protect critical areas
-    ocl->device_lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_t lock;
+    pthread_mutex_init ( &lock, NULL);
+    ocl->device_lock = lock;
 // END of assignment code section
 //===============================================================================================================================================================
 
@@ -165,6 +167,12 @@ int shutdown_driver(CLObject* ocl) {
 //===============================================================================================================================================================
 // START of assignment code section
     // [YOUR CODE HERE]
+
+    err = pthread_mutex_destroy(&ocl->device_lock);
+    if (err != 0) {
+        fprintf(stderr,"Error: Failed to destroy mutex: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
 // END of assignment code section
 //===============================================================================================================================================================
 
@@ -174,7 +182,8 @@ int shutdown_driver(CLObject* ocl) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int run_driver(CLObject* ocl,unsigned int buffer_size,  int* input_buffer_1, int* input_buffer_2, int w1, int w2, int* output_buffer) {
+int run_driver(CLObject* ocl,unsigned int buffer_size,  int* input_buffer_1, int* input_buffer_2,
+  int w1, int w2, int* output_buffer) {
     long long unsigned int tid = ocl->thread_num;
 #if VERBOSE_MT>2
      printf("run_driver thread: %llu\n",tid);
@@ -197,45 +206,133 @@ int run_driver(CLObject* ocl,unsigned int buffer_size,  int* input_buffer_1, int
          exit(EXIT_FAILURE);
      }
 
-     global = buffer_size; // create as meany threads on the device as there are elements in the array
+     // global = buffer_size; // create as meany threads on the device as there are elements in the array
+     global = local*2; // Hot fix as advised on Moddle
 
 //===============================================================================================================================================================
 // START of assignment code section
 
+    //Error Handling Code
+    //Example from https://stackoverflow.com/questions/10586003/try-catch-statements-in-c and http://www.di.unipi.it/~nids/docs/longjump_try_trow_catch.html
+    // static jmp_buf s_jumpBuffer;
+
     // You must make sure the driver is thread-safe by using the appropriate POSIX mutex operations
     // You must also check the return value of every API call and handle any errors
 
-    // Create the buffer objects to link the input and output arrays in device memory to the buffers in host memory
 
-    // [YOUR CODE HERE]
+    // Create the buffer objects to link the input and output arrays in device memory to the buffers in host memory
+    #ifdef VERBOSE
+      print("Creating buffers.")
+    #endif
+
+    int err_check =-1;
+    max_iters = MAX_ITERS;
+    do {
+      if(err_check != -1){
+        fprintf(stderr,"Error: Error creating buffer at index %d ! %d\n",(err_check-1), err);
+        max_iters --;
+      }
+      err_check=0;
+      input1 = clCreateBuffer(ocl->context, CL_MEM_READ_ONLY,
+                                      buffer_size * sizeof(int), NULL, &err);
+      err_check++;
+      input2 = clCreateBuffer(ocl->context, CL_MEM_READ_ONLY,
+                                      buffer_size * sizeof(int), NULL, &err);
+      err_check++;
+      output = clCreateBuffer(ocl->context, CL_MEM_WRITE_ONLY,
+                                      buffer_size * sizeof(int), NULL, &err);
+      err_check++;
+
+      status_buf = clCreateBuffer(ocl->context, CL_MEM_WRITE_ONLY,
+                                          buffer_size * sizeof(int), NULL, &err);
+      err_check++;
+    } while(err != CL_SUCCESS && max_iters>0);
+
+    #ifdef VERBOSE
+      print("Creating buffers successfully.")
+    #endif
+
+    //Acquiring lock
+    pthread_mutex_lock(&ocl->device_lock);
+
 
     // Write the data in input arrays into the device memory
+    #ifdef VERBOSE
+      print("Writing to buffers.")
+    #endif
 
-    // [YOUR CODE HERE]
+    int err_check =-1;
+    max_iters = MAX_ITERS;
 
+    do {
+      if(err_check != -1){
+        fprintf(stderr,"Error: Error creating buffer at index %d ! %d\n Trying again !!! \n",(err_check-1), err);
+        max_iters --;
+      }
+      if(max_iters != NULL && <=0)
+      err_check=0;
+      err = clEnqueueWriteBuffer(ocl->command_queue, input1, CL_TRUE, 0,
+                                buffer_size*sizeof(int), input_buffer_1, 0, NULL, NULL);
+      if (err == CL_SUCCESS) err_check++;
+
+      err = clEnqueueWriteBuffer(ocl->command_queue, input2, CL_TRUE, 0,
+                                buffer_size*sizeof(int), input_buffer_2, 0, NULL, NULL);
+      if (err == CL_SUCCESS) err_check++;
+    } while(err_check != 2 && max_iters>0);
+
+    #ifdef VERBOSE
+      print("Writing to buffers successfully.")
+    #endif
     // Set the arguments to our compute kernel
+    err = clSetKernelArg(ocl->kernel, 0, sizeof(cl_mem), &(input1));
 
-    // [YOUR CODE HERE]
+    err = clSetKernelArg(ocl->kernel, 1, sizeof(cl_mem), &(input2));
+
+    err = clSetKernelArg(ocl->kernel, 2, sizeof(cl_mem), &(output));
+
+    err = clSetKernelArg(ocl->kernel, 3, sizeof(cl_mem), &(status_buf));
+
+    err = clSetKernelArg(ocl->kernel, 4, sizeof(int), &(w1));
+
+    err = clSetKernelArg(ocl->kernel, 5, sizeof(int), &(w2));
+
+    err = clSetKernelArg(ocl->kernel, 6, sizeof(unsigned int), &(buffer_size));
+
 
     // Execute the kernel, i.e. tell the device to process the data using the given global and local ranges
+    err = clEnqueueNDRangeKernel(ocl->command_queue, ocl->kernel, 1, NULL,
+                                                &global, &local, 0, NULL, NULL);
 
-    // [YOUR CODE HERE]
 
-    // Wait for the command commands to get serviced before reading back results. This is the device sending an interrupt to the host
+    // Wait for the command commands to get serviced before reading back results.
+    //This is the device sending an interrupt to the host
+    err = clFinish(ocl->command_queue);
 
-    // [YOUR CODE HERE]
 
     // Check the status
-
-    // [YOUR CODE HERE]
+    // When the status is 0, read back the results from the device to verify the output
+    int crr_status = -7;
+    err = clEnqueueReadBuffer(ocl->command_queue, status_buf, CL_TRUE, 0,
+                            sizeof(int), &crr_status, 0, NULL, NULL);
 
     // When the status is 0, read back the results from the device to verify the output
 
-    // [YOUR CODE HERE]
+    if (crr_status == 0) {
+        err = clEnqueueReadBuffer(ocl->command_queue, output, CL_TRUE, 0,
+                                sizeof(int) * buffer_size, output_buffer, 0, NULL, NULL);
+    }
+    //End of critical area
+    pthread_mutex_unlock(&ocl->device_lock);
 
     // Shutdown and cleanup
 
-    // [YOUR CODE HERE]
+    err = clReleaseMemObject(input1);
+
+    err = clReleaseMemObject(input2);
+
+    err = clReleaseMemObject(output);
+
+    err = clReleaseMemObject(status_buf);
 
 // END of assignment code section
 //===============================================================================================================================================================
