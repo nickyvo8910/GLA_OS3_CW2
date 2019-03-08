@@ -135,7 +135,11 @@ CLObject* init_driver() {
     // [YOUR CODE HERE]
     //Creating mutex to protect critical areas
     pthread_mutex_t lock;
-    pthread_mutex_init ( &lock, NULL);
+    err = pthread_mutex_init ( &lock, NULL);
+    if (err != 0) {
+        fprintf(stderr,"Error: Failed to initialise mutex lock: %d!\n",err);
+        exit(EXIT_FAILURE);
+    }
     ocl->device_lock = lock;
 // END of assignment code section
 //===============================================================================================================================================================
@@ -225,35 +229,46 @@ int run_driver(CLObject* ocl,unsigned int buffer_size,  int* input_buffer_1, int
       print("Creating buffers.")
     #endif
 
-    int err_check =-1;
-    max_iters = MAX_ITERS;
-    do {
-      if(err_check != -1){
-        fprintf(stderr,"Error: Error creating buffer at index %d ! %d\n",(err_check-1), err);
-        max_iters --;
-      }
-      err_check=0;
-      input1 = clCreateBuffer(ocl->context, CL_MEM_READ_ONLY,
-                                      buffer_size * sizeof(int), NULL, &err);
-      err_check++;
-      input2 = clCreateBuffer(ocl->context, CL_MEM_READ_ONLY,
-                                      buffer_size * sizeof(int), NULL, &err);
-      err_check++;
-      output = clCreateBuffer(ocl->context, CL_MEM_WRITE_ONLY,
-                                      buffer_size * sizeof(int), NULL, &err);
-      err_check++;
 
-      status_buf = clCreateBuffer(ocl->context, CL_MEM_WRITE_ONLY,
-                                          buffer_size * sizeof(int), NULL, &err);
-      err_check++;
-    } while(err != CL_SUCCESS && max_iters>0);
+    input1 = clCreateBuffer(ocl->context, CL_MEM_READ_ONLY,
+                                    buffer_size * sizeof(int), NULL, &err);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error creating buffer for input1: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
+
+    input2 = clCreateBuffer(ocl->context, CL_MEM_READ_ONLY,
+                                    buffer_size * sizeof(int), NULL, &err);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error creating buffer for input2: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
+
+    output = clCreateBuffer(ocl->context, CL_MEM_WRITE_ONLY,
+                                    buffer_size * sizeof(int), NULL, &err);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error creating buffer for output: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
+
+    status_buf = clCreateBuffer(ocl->context, CL_MEM_WRITE_ONLY,
+                                        buffer_size * sizeof(int), NULL, &err);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error creating buffer for status_buf: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
 
     #ifdef VERBOSE
       print("Creating buffers successfully.")
     #endif
 
     //Acquiring lock
-    pthread_mutex_lock(&ocl->device_lock);
+
+    err = pthread_mutex_lock(&ocl->device_lock);
+    if (err != 0) {
+        fprintf(stderr,"Error: Failed to acquire mutex lock: %d!\n",err);
+        exit(EXIT_FAILURE);
+    }
 
 
     // Write the data in input arrays into the device memory
@@ -261,78 +276,127 @@ int run_driver(CLObject* ocl,unsigned int buffer_size,  int* input_buffer_1, int
       print("Writing to buffers.")
     #endif
 
-    int err_check =-1;
-    max_iters = MAX_ITERS;
-
-    do {
-      if(err_check != -1){
-        fprintf(stderr,"Error: Error creating buffer at index %d ! %d\n Trying again !!! \n",(err_check-1), err);
-        max_iters --;
-      }
-      if(max_iters != NULL && <=0)
-      err_check=0;
-      err = clEnqueueWriteBuffer(ocl->command_queue, input1, CL_TRUE, 0,
-                                buffer_size*sizeof(int), input_buffer_1, 0, NULL, NULL);
-      if (err == CL_SUCCESS) err_check++;
-
-      err = clEnqueueWriteBuffer(ocl->command_queue, input2, CL_TRUE, 0,
-                                buffer_size*sizeof(int), input_buffer_2, 0, NULL, NULL);
-      if (err == CL_SUCCESS) err_check++;
-    } while(err_check != 2 && max_iters>0);
+    err = clEnqueueWriteBuffer(ocl->command_queue, input1, CL_TRUE, 0,buffer_size*sizeof(int), input_buffer_1, 0, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error writing input1 to device memory: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
+    err = clEnqueueWriteBuffer(ocl->command_queue, input2, CL_TRUE, 0,buffer_size*sizeof(int), input_buffer_2, 0, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error writing input2 to device memory: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
 
     #ifdef VERBOSE
       print("Writing to buffers successfully.")
     #endif
     // Set the arguments to our compute kernel
     err = clSetKernelArg(ocl->kernel, 0, sizeof(cl_mem), &(input1));
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error passing argument of input1 to kernel: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
     err = clSetKernelArg(ocl->kernel, 1, sizeof(cl_mem), &(input2));
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error passing argument of input2 to kernel: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
     err = clSetKernelArg(ocl->kernel, 2, sizeof(cl_mem), &(output));
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error passing argument of output to kernel: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
     err = clSetKernelArg(ocl->kernel, 3, sizeof(cl_mem), &(status_buf));
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error passing argument of status_buf to kernel: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
     err = clSetKernelArg(ocl->kernel, 4, sizeof(int), &(w1));
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error passing argument of w1 to kernel: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
     err = clSetKernelArg(ocl->kernel, 5, sizeof(int), &(w2));
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error passing argument of w2 to kernel: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
     err = clSetKernelArg(ocl->kernel, 6, sizeof(unsigned int), &(buffer_size));
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error passing argument of buffer_size to kernel: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
 
     // Execute the kernel, i.e. tell the device to process the data using the given global and local ranges
-    err = clEnqueueNDRangeKernel(ocl->command_queue, ocl->kernel, 1, NULL,
-                                                &global, &local, 0, NULL, NULL);
+    err = clEnqueueNDRangeKernel(ocl->command_queue, ocl->kernel, 1, NULL,&global, &local, 0, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error executing the kernel: %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
 
 
     // Wait for the command commands to get serviced before reading back results.
     //This is the device sending an interrupt to the host
     err = clFinish(ocl->command_queue);
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error while running clFinish(): %d!\n",err);
+        exit(EXIT_FAILURE);
+     }
 
     // Check the status
     // When the status is 0, read back the results from the device to verify the output
-    int crr_status = -7;
-    err = clEnqueueReadBuffer(ocl->command_queue, status_buf, CL_TRUE, 0,
-                            sizeof(int), &crr_status, 0, NULL, NULL);
+    int crr_status = -1;
+    do {
+      err = clEnqueueReadBuffer(ocl->command_queue, status_buf, CL_TRUE, 0,sizeof(int), &crr_status, 0, NULL, NULL);
+      max_iters --;
+      if (err != CL_SUCCESS){
+        fprintf(stderr,"Error reading status value : %d !\n",err);
+        exit(EXIT_FAILURE);
+      }
+    } while(crr_status != 0 && max_iters >0);
 
     // When the status is 0, read back the results from the device to verify the output
 
     if (crr_status == 0) {
-        err = clEnqueueReadBuffer(ocl->command_queue, output, CL_TRUE, 0,
-                                sizeof(int) * buffer_size, output_buffer, 0, NULL, NULL);
+        err = clEnqueueReadBuffer(ocl->command_queue, output, CL_TRUE, 0,sizeof(int) * buffer_size, output_buffer, 0, NULL, NULL);
+        if (err != CL_SUCCESS) {
+            fprintf(stderr,"Error reading results from device: %d!\n",err);
+            exit(EXIT_FAILURE);
+         }
+
+    }else{
+      fprintf(stderr,"Error reading status value after the maximum iteration has reached: %d!\n",err);
+      exit(EXIT_FAILURE);
     }
     //End of critical area
-    pthread_mutex_unlock(&ocl->device_lock);
 
+    err = pthread_mutex_unlock(&ocl->device_lock);
+    if (err != 0) {
+        fprintf(stderr,"Error: Failed to release mutex lock: %d!\n",err);
+        exit(EXIT_FAILURE);
+    }
     // Shutdown and cleanup
 
     err = clReleaseMemObject(input1);
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error releasing input1 buffer: %d!\n",err);
+        exit(EXIT_FAILURE);
+    }
     err = clReleaseMemObject(input2);
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error releasing input2 buffer: %d!\n",err);
+        exit(EXIT_FAILURE);
+    }
     err = clReleaseMemObject(output);
-
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error releasing output buffer: %d!\n",err);
+        exit(EXIT_FAILURE);
+    }
     err = clReleaseMemObject(status_buf);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error releasing status buffer: %d!\n",err);
+        exit(EXIT_FAILURE);
+    }
 
 // END of assignment code section
 //===============================================================================================================================================================
