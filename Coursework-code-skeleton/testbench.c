@@ -26,14 +26,14 @@ struct thread_info {    /* Used as argument to thread_start() */
 
 void* thread_start(void *vtinfo) {
     struct thread_info *tinfo = vtinfo;
-#if VERBOSE_MT>3
+#if VERBOSE_MT>3    
     printf("Thread %llu started\n", tinfo->thread_num);
 #endif
     const unsigned int mSize = BUF_SZ;
     const int w1 = W1;
     const int w2 = W2;
-
-    // Create the data sets
+    
+    // Create the data sets   
     int* mA=(int*)malloc(sizeof(int)*mSize);
     int* mB=(int*)malloc(sizeof(int)*mSize);
 
@@ -44,7 +44,7 @@ void* thread_start(void *vtinfo) {
     // Create the reference
     int* mCref=(int*)malloc(sizeof(int)*mSize);
     for (unsigned int i = 0; i<mSize; i++) {
-            mCref[i]=w1*mA[i]*mA[i]+w2*mB[i]*mB[i];
+            mCref[i]=w1*mA[i]*mA[i]+w2*mB[i]*mB[i];        
     }
 
     int* mC=(int*)malloc(sizeof(int)*mSize);
@@ -65,7 +65,7 @@ void* thread_start(void *vtinfo) {
     free(mB);
     free(mC);
     return  (void*)(tinfo->thread_num);
-}
+}    
 
 int main(int argc, char *argv[]) {
     // Initialise OpenCL
@@ -111,12 +111,13 @@ int main(int argc, char *argv[]) {
             handle_error_en(st, "pthread_join");
 #if VERBOSE_MT>3
         printf("Joined with thread %llu\n", tinfo[tnum].thread_num);
-#endif
+#endif        
     }
 
     free(tinfo);
 
     shutdown_driver(ocl);
-
+    
     exit(EXIT_SUCCESS);
 }
+
