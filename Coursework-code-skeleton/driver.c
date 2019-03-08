@@ -407,6 +407,13 @@ int run_driver(CLObject* ocl,unsigned int buffer_size,  int* input_buffer_1, int
 
     //End of critical area
 
+
+
+    // Shutdown and cleanup
+    #ifdef VERBOSE
+      print("Shutdown and cleanup.")
+    #endif
+
     #ifdef VERBOSE
       print("Releasing mutex lock.")
     #endif
@@ -419,11 +426,6 @@ int run_driver(CLObject* ocl,unsigned int buffer_size,  int* input_buffer_1, int
 
     #ifdef VERBOSE
       print("Releasing mutex lock successfully.")
-    #endif
-
-    // Shutdown and cleanup
-    #ifdef VERBOSE
-      print("Shutdown and cleanup.")
     #endif
 
     err = clReleaseMemObject(input1);
